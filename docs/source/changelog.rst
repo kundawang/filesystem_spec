@@ -130,6 +130,11 @@ Fixes
   unchanged behaviour), ``"warning"`` or ``"reject"``, or any
   ``paramiko.MissingHostKeyPolicy`` (#2126; issue #2119)
 
+- ``SFTPFileSystem`` accepts a ``known_hosts`` argument giving a file of
+  known host keys to check the server against (or ``"system"`` for the
+  default system and user files), to combine with
+  ``host_key_policy="reject"``
+
 Other
 
 - Use trusted publishing for releases and trigger the release workflow on tags

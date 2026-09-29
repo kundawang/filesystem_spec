@@ -327,6 +327,16 @@ class _FakeSSHClient:
         self.policy = None
         self.host = None
         self.connect_kwargs = None
+        self.host_key_files = []
+        self.loaded_system_host_keys = False
+
+    def load_host_keys(self, filename):
+        self.host_key_files.append(filename)
+
+    def load_system_host_keys(self, filename=None):
+        self.loaded_system_host_keys = True
+        if filename is not None:
+            self.host_key_files.append(filename)
 
     def set_missing_host_key_policy(self, policy):
         self.policy = policy
@@ -403,3 +413,48 @@ def test_host_key_policy_wrong_type(fake_client):
         fsspec.filesystem(
             "sftp", host="host", host_key_policy=42, skip_instance_cache=True
         )
+
+
+def test_known_hosts_not_loaded_by_default(fake_client):
+    fs = fsspec.filesystem("sftp", host="host", skip_instance_cache=True)
+
+    assert fs.client.host_key_files == []
+    assert fs.client.loaded_system_host_keys is False
+
+
+def test_known_hosts_from_file(fake_client, tmp_path):
+    known_hosts = tmp_path / "known_hosts"
+    known_hosts.write_text("host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5\n")
+    fs = fsspec.filesystem(
+        "sftp",
+        host="host",
+        host_key_policy="reject",
+        known_hosts=str(known_hosts),
+        skip_instance_cache=True,
+    )
+
+    assert fs.client.host_key_files == [str(known_hosts)]
+    assert fs.client.loaded_system_host_keys is False
+    assert isinstance(fs.client.policy, paramiko.RejectPolicy)
+
+
+def test_known_hosts_system(fake_client):
+    fs = fsspec.filesystem(
+        "sftp", host="host", known_hosts="system", skip_instance_cache=True
+    )
+
+    assert fs.client.host_key_files == []
+    assert fs.client.loaded_system_host_keys is True
+
+
+def test_known_hosts_not_passed_to_connect(fake_client):
+    fs = fsspec.filesystem(
+        "sftp",
+        host="host",
+        known_hosts="/etc/ssh/ssh_known_hosts",
+        username="user",
+        skip_instance_cache=True,
+    )
+
+    assert fs.client.host_key_files == ["/etc/ssh/ssh_known_hosts"]
+    assert fs.client.connect_kwargs == {"username": "user"}

@@ -79,6 +79,15 @@ class SFTPFileSystem(AbstractFileSystem):
             first connection to a host, so a man-in-the-middle attacker can
             impersonate the server. Pass ``"reject"`` to only connect to hosts
             whose keys are already in the known hosts of the process.
+        known_hosts: str, optional
+            Path to a file of known host keys, in the OpenSSH
+            ``known_hosts`` format, loaded with
+            ``paramiko.SSHClient.load_host_keys`` before connecting. The
+            special value ``"system"`` loads the default system and user
+            known hosts files with
+            ``paramiko.SSHClient.load_system_host_keys`` instead. Combine
+            with ``host_key_policy="reject"`` to only connect to hosts
+            whose keys are in the given file.
         ssh_kwargs: dict
             Parameters passed on to connection. See details in
             https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
@@ -91,6 +100,7 @@ class SFTPFileSystem(AbstractFileSystem):
         self.host_key_policy = _resolve_host_key_policy(
             ssh_kwargs.pop("host_key_policy", None)
         )
+        self.known_hosts = ssh_kwargs.pop("known_hosts", None)
         self.host = host
         self.ssh_kwargs = ssh_kwargs
         self._connect()
@@ -98,6 +108,11 @@ class SFTPFileSystem(AbstractFileSystem):
     def _connect(self):
         logger.debug("Connecting to SFTP server %s", self.host)
         self.client = paramiko.SSHClient()
+        if self.known_hosts is not None:
+            if self.known_hosts == "system":
+                self.client.load_system_host_keys()
+            else:
+                self.client.load_host_keys(os.path.expanduser(self.known_hosts))
         self.client.set_missing_host_key_policy(self.host_key_policy)
         self.client.connect(self.host, **self.ssh_kwargs)
         self.ftp = self.client.open_sftp()
